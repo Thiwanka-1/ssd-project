@@ -167,29 +167,41 @@ export default function UpdateTimetable() {
 
   // 7️⃣ Submit updated timetable
   const handleSubmit = async (e) => {
-    e.preventDefault();
-    setErrorMessage("");
-    const validationErrors = validateForm();
-    if (Object.keys(validationErrors).length > 0) {
-      setErrors(validationErrors);
-      return;
-    }
+  e.preventDefault();
+  setErrorMessage("");
+  const validationErrors = validateForm();
+  if (Object.keys(validationErrors).length > 0) {
+    setErrors(validationErrors);
+    return;
+  }
 
-    setLoadingUpdate(true);
-    try {
-      await axios.put(`/api/timetables/update/${id}`, {
-        group_id: selectedGroup,
-        schedule
-      });
-      alert("Timetable updated successfully!");
-      navigate("/view-timetables");
-    } catch (error) {
-      console.error("Error updating timetable:", error);
-      setErrorMessage(error.response?.data?.message || "Failed to update timetable.");
-    } finally {
-      setLoadingUpdate(false);
-    }
-  };
+  // 🔥 Clean schedule: remove _id from day + lecture objects
+  const cleanedSchedule = schedule.map((day) => ({
+    day: day.day,
+    lectures: day.lectures.map((lec) => ({
+      start_time: lec.start_time,
+      end_time: lec.end_time,
+      module_code: lec.module_code,
+      lecturer_id: lec.lecturer_id,
+      venue_id: lec.venue_id,
+    })),
+  }));
+
+  setLoadingUpdate(true);
+  try {
+    await axios.put(`/api/timetables/update/${id}`, {
+      group_id: selectedGroup,
+      schedule: cleanedSchedule,
+    });
+    alert("Timetable updated successfully!");
+    navigate("/view-timetables");
+  } catch (error) {
+    console.error("Error updating timetable:", error.response?.data);
+    setErrorMessage(error.response?.data?.message || "Failed to update timetable.");
+  } finally {
+    setLoadingUpdate(false);
+  }
+};
 
   return (
     <div className="max-w-4xl mx-auto p-5 bg-white shadow-lg rounded-lg mt-10">

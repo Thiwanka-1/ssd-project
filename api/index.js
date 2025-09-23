@@ -1,3 +1,4 @@
+// api/index.js
 import express from 'express';
 import mongoose from 'mongoose';
 import dotenv from 'dotenv';
@@ -17,6 +18,9 @@ import modules from "./routes/module.routes.js";
 import timetableRoutes from "./routes/timetable.routes.js";
 import resceduleTImeTable from "./routes/lecRescedule.route.js";
 
+
+import mongoSanitize from 'express-mongo-sanitize';
+import helmet from 'helmet';
 // Load environment variables
 dotenv.config();
 
@@ -25,9 +29,14 @@ dotenv.config();
 const app = express();
 
 // Middleware
+app.use(helmet());              // add basic security headers
+
 app.use(express.json());  // Parses incoming requests with JSON payloads
 app.use(cookieParser());   // Parse cookies in incoming requests
 
+
+// Sanitize req.body, req.query and req.params to remove $ and . keys
+app.use(mongoSanitize());
 // Configure CORS
 app.use(cors({
   origin: process.env.FRONTEND_URL,  // Allow requests from your frontend domain

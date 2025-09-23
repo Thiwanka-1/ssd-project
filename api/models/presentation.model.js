@@ -1,3 +1,4 @@
+//presentation.model.js
 import mongoose from "mongoose";
 
 const presentationSchema = new mongoose.Schema({

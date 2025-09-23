@@ -174,9 +174,10 @@ export default function AddTimetable() {
     }
 
     const formData = {
-      group_id: selectedGroup,
-      schedule,
-    };
+  group_id: selectedGroup,
+  schedule: schedule.filter(day => day.lectures.length > 0),
+};
+
 
     setLoadingSubmit(true);
     try {

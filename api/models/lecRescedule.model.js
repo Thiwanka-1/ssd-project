@@ -1,3 +1,4 @@
+//lecRescedule.model.js
 import mongoose from "mongoose";
 
 const rescheduledLectureSchema = new mongoose.Schema({

@@ -1,3 +1,4 @@
+//groups.model.js
 import mongoose from "mongoose";
 
 const studentGroupSchema = new mongoose.Schema({
