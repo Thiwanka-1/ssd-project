@@ -10,49 +10,45 @@ const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
 export const googleCallback = async (req, res) => {
   try {
-    const { token } = req.query; // frontend sends Google ID token
+    const { token } = req.query;
     if (!token) return res.status(400).json({ message: "No token provided" });
 
-    // Verify token with Google
+    // ✅ Verify token with Google
     const ticket = await client.verifyIdToken({
       idToken: token,
       audience: process.env.GOOGLE_CLIENT_ID,
     });
     const payload = ticket.getPayload();
 
-    // Check if user already exists
+    // ✅ Check if user already exists
     let user = await User.findOne({ email: payload.email });
 
     if (!user) {
-      // 1️Generate new student_id
-      const department = "SET"; // default dept (update later if needed)
+      // 1️⃣ Generate a new student_id
+      const department = "SET"; // Default dept
       const lastStudent = await Student.findOne({ department }).sort({ student_id: -1 });
       let nextIdNumber = lastStudent
         ? parseInt(lastStudent.student_id.slice(-3)) + 1
         : 1;
-      const student_id = `ST${department}${new Date().getFullYear()}${String(
-        nextIdNumber
-      ).padStart(3, "0")}`;
+      const student_id = `ST${department}${new Date().getFullYear()}${String(nextIdNumber).padStart(3, "0")}`;
 
-      //  Create Student record
-      const generatedPassword =
-        Math.random().toString(36).slice(-8) +
-        Math.random().toString(36).slice(-8);
+      // 2️⃣ Create Student record
+      const generatedPassword = Math.random().toString(36).slice(-8);
       const hashedPassword = await bcryptjs.hash(generatedPassword, 10);
 
       const newStudent = new Student({
         student_id,
         name: payload.name,
         email: payload.email,
-        password: hashedPassword, // dummy password
+        password: hashedPassword,
         phone: "",
         department,
       });
       await newStudent.save();
 
-      // 3 Create linked User record
+      // 3️⃣ Create linked User record
       user = new User({
-        user_id: student_id, // link to Student
+        user_id: student_id,
         username: payload.name,
         email: payload.email,
         password: hashedPassword,
@@ -63,35 +59,59 @@ export const googleCallback = async (req, res) => {
       await user.save();
     }
 
-    // Issue JWT
+    // ✅ Session Fixation Prevention
+    // Destroy any existing session or cookie before setting new
+    res.clearCookie("access_token", { path: "/" });
+
+    if (req.session) {
+      req.session.destroy(err => {
+        if (err) console.error("Failed to destroy old session:", err);
+      });
+    }
+
+    if (req.sessionStore) {
+      req.sessionStore.generate(req); // generate a new session ID
+    }
+
+    // ✅ Issue new JWT
     const appToken = jwt.sign(
       { id: user._id, role: user.role || "student", isAdmin: user.isAdmin || false },
       process.env.JWT_SECRET,
       { expiresIn: "1h" }
     );
 
+    // ✅ Set hardened cookie
     res.cookie("access_token", appToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
+      httpOnly: true,                          // prevent XSS access
+      secure: process.env.NODE_ENV === "production", // only over HTTPS in prod
+      sameSite: "Strict",                      // strong CSRF protection
+      path: "/",                               // limit cookie scope
+      maxAge: 60 * 60 * 1000,                  // 1 hour
+      overwrite: true,                         // replace any existing
     });
 
-    //  Response is now same structure as normal login
+    // ✅ Prevent caching (important for auth responses)
+    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+
+    // ✅ Send response with consistent structure
     res.status(200).json({
       id: user._id,
-      user_id: user.user_id, // student_id ref
+      user_id: user.user_id,
       username: user.username,
       email: user.email,
       profilePicture: user.profilePicture,
       role: user.role || "student",
       isAdmin: user.isAdmin || false,
       token: appToken,
+      message: "Google login successful - new session created",
     });
+
   } catch (err) {
     console.error("Google OAuth error:", err);
     res.status(500).json({ message: "Google login failed" });
   }
 };
+
 
 
 
