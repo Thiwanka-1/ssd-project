@@ -29,19 +29,26 @@ export const signin = async (req, res, next) => {
 
     // ✅ Include role in JWT
     const token = jwt.sign(
-      { id: validUser._id, isAdmin: validUser.isAdmin, role: userRole }, 
+      { id: validUser._id, isAdmin: validUser.isAdmin, role: userRole },
       process.env.JWT_SECRET
     );
 
     const { password: hashedPassword, ...rest } = validUser._doc;
     const expiryDate = new Date(Date.now() + 86400000); // 1 hour
 
-    res
-      .cookie('access_token', token, { httpOnly: true, expires: expiryDate })
+    /*res
+      .cookie('access_token', token, { httpOnly: true, expires: expiryDate })*/
+    //Sarangi
+    res.cookie('access_token', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production', // ✅ use HTTPS in prod
+      sameSite: 'lax',                               // ✅ add SameSite
+      expires: expiryDate,
+    })
       .status(200)
-      .json({ 
-        ...rest, 
-        token, 
+      .json({
+        ...rest,
+        token,
         role: userRole // ✅ Ensure role is included in response
       });
   } catch (error) {
@@ -58,11 +65,18 @@ export const google = async (req, res, next) => {
       const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET);
       const { password: hashedPassword, ...rest } = user._doc;
       const expiryDate = new Date(Date.now() + 86400000); // 1 hour
-      res
+      /*res
         .cookie('access_token', token, {
           httpOnly: true,
           expires: expiryDate,
-        })
+        })*/
+      //Sarangi
+      res.cookie('access_token', token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production', // ✅ secure in prod
+        sameSite: 'lax',                               // ✅ add SameSite
+        expires: expiryDate,
+      })
         .status(200)
         .json(rest);
     } else {
@@ -82,11 +96,17 @@ export const google = async (req, res, next) => {
       const token = jwt.sign({ id: newUser._id }, process.env.JWT_SECRET);
       const { password: hashedPassword2, ...rest } = newUser._doc;
       const expiryDate = new Date(Date.now() + 86400000); // 1 hour
-      res
+      /*res
         .cookie('access_token', token, {
           httpOnly: true,
           expires: expiryDate,
-        })
+        })*/
+      res.cookie('access_token', token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production', // ✅ secure in prod
+        sameSite: 'lax',                               // ✅ add SameSite
+        expires: expiryDate,
+      })
         .status(200)
         .json(rest);
     }
@@ -96,5 +116,11 @@ export const google = async (req, res, next) => {
 };
 
 export const signout = (req, res) => {
-  res.clearCookie('access_token').status(200).json('Signout success!');
+  //Sarangi
+  // res.clearCookie('access_token').status(200).json('Signout success!');
+  res.clearCookie('access_token', {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax',
+  }).status(200).json('Signout success!');
 };
