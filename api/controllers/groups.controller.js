@@ -45,35 +45,36 @@ const generateGroupId = async () => {
  */
 export const addStudentGroup = async (req, res) => {
   try {
-    // Validate incoming body
     const { error, value } = addGroupSchema.validate(req.body, { abortEarly: false });
     if (error) {
-      return res.status(400).json({ message: "Validation failed", details: error.details.map(d => d.message) });
+      return res.status(400).json({
+        message: "Validation failed",
+        details: error.details.map((d) => d.message),
+      });
     }
 
-    // Sanitize
     const department = sanitizeString(value.department);
-    const studentsInput = sanitizeArrayOfStrings(value.students);
+    // 🔒 Sanitize each student id
+    const studentsInput = sanitizeArrayOfStrings(value.students).map((s) => String(s));
 
-    // Find students by their student_id (ensure these fields are strings)
-    const studentDocs = await Student.find({ student_id: { $in: studentsInput } }).select("_id student_id name");
+    const studentDocs = await Student.find({
+      student_id: { $in: studentsInput }
+    }).select("_id student_id name");
 
     if (studentDocs.length !== studentsInput.length) {
       return res.status(400).json({ message: "One or more student IDs are invalid" });
     }
 
-    // Check if any of the students are already in another group
     const existingGroup = await StudentGroup.findOne({
-      students: { $in: studentDocs.map((s) => s._id) }
+      students: { $in: studentDocs.map((s) => new mongoose.Types.ObjectId(s._id)) },
     }).select("group_id");
 
     if (existingGroup) {
       return res.status(400).json({
-        message: `One or more students are already assigned to another group (Group ID: ${existingGroup.group_id}).`
+        message: `One or more students are already assigned to another group (Group ID: ${existingGroup.group_id}).`,
       });
     }
 
-    // Generate id & create
     const group_id = await generateGroupId();
 
     const newGroup = new StudentGroup({
@@ -84,12 +85,16 @@ export const addStudentGroup = async (req, res) => {
 
     await newGroup.save();
 
-    return res.status(201).json({ message: "Student group created successfully", group_id });
+    return res.status(201).json({
+      message: "Student group created successfully",
+      group_id,
+    });
   } catch (err) {
     console.error("addStudentGroup error:", err);
     return res.status(500).json({ message: "Server error" });
   }
 };
+
 
 /**
  * Get all groups
@@ -146,7 +151,6 @@ export const updateStudentGroup = async (req, res) => {
       });
     }
 
-    // ✅ FIX: use new ObjectId()
     const group = await StudentGroup.findById(new mongoose.Types.ObjectId(id));
     if (!group) {
       return res.status(404).json({ message: "Student group not found" });
@@ -155,20 +159,21 @@ export const updateStudentGroup = async (req, res) => {
     // If students present, verify them
     let studentDocs = [];
     if (value.students) {
-      const studentsInput = sanitizeArrayOfStrings(value.students);
+      // 🔒 Strong sanitize & enforce string array
+      const studentsInput = sanitizeArrayOfStrings(value.students).map((s) => String(s));
 
-      studentDocs = await Student.find({ student_id: { $in: studentsInput } }).select(
-        "_id student_id"
-      );
+      studentDocs = await Student.find({
+        student_id: { $in: studentsInput }
+      }).select("_id student_id");
 
       if (studentDocs.length !== studentsInput.length) {
         return res.status(400).json({ message: "One or more student IDs are invalid" });
       }
 
-      // ✅ FIX: also use new ObjectId() here
+      // Ensure they are not in another group
       const existingGroup = await StudentGroup.findOne({
         _id: { $ne: new mongoose.Types.ObjectId(id) },
-        students: { $in: studentDocs.map((s) => s._id) },
+        students: { $in: studentDocs.map((s) => new mongoose.Types.ObjectId(s._id)) },
       }).select("group_id");
 
       if (existingGroup) {
@@ -180,21 +185,22 @@ export const updateStudentGroup = async (req, res) => {
       group.students = studentDocs.map((s) => s._id);
     }
 
-    // Update department if provided
     if (value.department) {
       group.department = sanitizeString(value.department);
     }
 
     await group.save();
 
-    return res
-      .status(200)
-      .json({ message: "Student group updated successfully", updatedGroup: group });
+    return res.status(200).json({
+      message: "Student group updated successfully",
+      updatedGroup: group,
+    });
   } catch (err) {
     console.error("updateStudentGroup error:", err);
     return res.status(500).json({ message: "Server error" });
   }
 };
+
 
 
 /**
