@@ -109,62 +109,67 @@ export const signup = async (req, res, next) => {
 
 export const signin = async (req, res, next) => {
   const { email, password } = req.body;
+
   try {
+    // 1️⃣ Find user safely
     const validUser = await User.findOne({ email });
     if (!validUser) return next(errorHandler(404, 'User not found'));
 
+    // 2️⃣ Verify password
     const validPassword = bcryptjs.compareSync(password, validUser.password);
     if (!validPassword) return next(errorHandler(401, 'Wrong credentials'));
 
-    // ✅ Ensure `role` is always included
+    // 3️⃣ Generate new secure JWT (1-hour expiry)
     const userRole = validUser.isAdmin ? 'admin' : validUser.role || 'user';
-
-    // ✅ Include role in JWT
     const token = jwt.sign(
-      { id: validUser._id, isAdmin: validUser.isAdmin, role: userRole }, 
+      { id: validUser._id, isAdmin: validUser.isAdmin, role: userRole },
       process.env.JWT_SECRET,
-      { expiresIn: "1h" } // force expiry
+      { expiresIn: "1h" }
     );
 
     const { password: hashedPassword, ...rest } = validUser._doc;
 
-    // clear any old cookie before setting new
-    res.setHeader("Cache-Control", "no-store");   // prevents reuse of response
-    
-    if (req.session) {
-      req.session.regenerate(err => {
-        if (err) console.error("Session regeneration failed:", err);
-      });
-    }
-
-    res.clearCookie("access_token", { path: "/" });
+    // 4️⃣ Session Fixation Mitigation
+    // Destroy any old session and regenerate a new one before issuing cookie
     if (req.session) {
       req.session.destroy(err => {
         if (err) console.error("Failed to destroy old session:", err);
       });
     }
 
+    // Create new session ID
+    if (req.sessionStore) {
+      req.sessionStore.generate(req);
+    }
 
-    res
-      .cookie('access_token', token, { 
-          httpOnly: true, 
-          secure: process.env.NODE_ENV === 'production', // only HTTPS in production
-          sameSite: 'Strict', 
-          path: "/",
-          maxAge: 60 * 60 * 1000, // 1 hour
-          overwrite: true,
-          signed: true 
-      })
-      .status(200)
-      .json({ 
-        ...rest, 
-        token, 
-        role: userRole // ✅ Ensure role is included in response
-      });
+    // 5️⃣ Clear any previous cookies before setting new one
+    res.clearCookie("access_token", { path: "/" });
+
+    // 6️⃣ Set new cookie with secure attributes
+    res.cookie("access_token", token, {
+      httpOnly: true,                        // protect from XSS
+      secure: process.env.NODE_ENV === "production", // only over HTTPS
+      sameSite: "Strict",                    // CSRF protection
+      path: "/",                             // restrict scope
+      maxAge: 60 * 60 * 1000,                // 1 hour
+      overwrite: true,
+    });
+
+    // 7️⃣ Prevent caching (no reuse of auth responses)
+    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+
+    // 8️⃣ Respond securely
+    res.status(200).json({
+      ...rest,
+      token,
+      role: userRole,
+      message: "Login successful - new session created"
+    });
   } catch (error) {
     next(error);
   }
 };
+
 
 
 export const signout = (req, res) => {
