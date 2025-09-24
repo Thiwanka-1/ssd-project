@@ -229,12 +229,19 @@ export const updateTimetable = async (req, res) => {
 
 // Sanitize lecture.module_code before using in query to prevent NoSQL injection
         const sanitizedModuleCode = mongoSanitize.sanitize(lecture.module_code);
-        const moduleExists = await Module.findOne({ module_code: sanitizedModuleCode });        if (!moduleExists) return res.status(400).json({ message: `Invalid Module Code (${lecture.module_code}).` });
+        const moduleExists = await Module.findOne({ module_code: sanitizedModuleCode });       
+         if (!moduleExists) return res.status(400).json({ message: `Invalid Module Code (${lecture.module_code}).` });
 
-        const lecturerExists = await Examiner.findOne({ examiner_id: lecture.lecturer_id });
+// Sanitize lecture.lecturer_id before using in query to prevent NoSQL injection
+        const sanitizedLecturerId = mongoSanitize.sanitize(lecture.lecturer_id);
+        const lecturerExists = await Examiner.findOne({ examiner_id: sanitizedLecturerId });
+
         if (!lecturerExists) return res.status(400).json({ message: `Invalid Lecturer ID (${lecture.lecturer_id}).` });
 
-        const venueExists = await Venue.findOne({ venue_id: lecture.venue_id });
+        // Sanitize lecture.venue_id before using in query to prevent NoSQL injection
+        const sanitizedVenueId = mongoSanitize.sanitize(lecture.venue_id);
+        const venueExists = await Venue.findOne({ venue_id: sanitizedVenueId });
+
         if (!venueExists) return res.status(400).json({ message: `Invalid Venue ID (${lecture.venue_id}).` });
 
         if (i > 0) {
@@ -246,17 +253,29 @@ export const updateTimetable = async (req, res) => {
           }
         }
 
+        // Make sure to import mongoSanitize at the top of your file:
+        // import mongoSanitize from 'express-mongo-sanitize';
+
+        // Sanitize user-controlled values in the query to prevent NoSQL injection
+        
+        const sanitizedDay = mongoSanitize.sanitize(day.day);
+        const sanitizedGroupId = mongoSanitize.sanitize(group_id);
+        const sanitizedId = mongoSanitize.sanitize(id);
+
         const conflictingLecture = await Timetable.findOne({
-          "schedule.day": day.day,
+          "schedule.day": sanitizedDay,
           "schedule.lectures": {
             $elemMatch: {
-              $or: [{ venue_id: lecture.venue_id }, { lecturer_id: lecture.lecturer_id }],
+            $or: [
+                { venue_id: sanitizedVenueId }, 
+                { lecturer_id: sanitizedLecturerId }
+              ],
               start_time: { $lt: lecture.end_time },
               end_time: { $gt: lecture.start_time },
             },
           },
-          group_id: { $ne: group_id },
-          _id: { $ne: new mongoose.Types.ObjectId(id) },
+           group_id: { $ne: sanitizedGroupId },
+          _id: { $ne: new mongoose.Types.ObjectId(sanitizedId) },
         });
 
         if (conflictingLecture) {
