@@ -20,6 +20,7 @@
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
     "express-mongo-sanitize": "^2.2.0",
+    "google-auth-library": "^10.3.0",
     "helmet": "^8.1.0",
     "joi": "^18.0.1",
     "jsonwebtoken": "^9.0.2",

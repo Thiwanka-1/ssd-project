@@ -2,6 +2,98 @@ import User from '../models/user.model.js';
 import bcryptjs from 'bcryptjs';
 import { errorHandler } from '../utils/error.js';
 import jwt from 'jsonwebtoken';
+import { OAuth2Client } from "google-auth-library";
+import Student from "../models/student.model.js";
+
+
+const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+
+export const googleCallback = async (req, res) => {
+  try {
+    const { token } = req.query; // frontend sends Google ID token
+    if (!token) return res.status(400).json({ message: "No token provided" });
+
+    // Verify token with Google
+    const ticket = await client.verifyIdToken({
+      idToken: token,
+      audience: process.env.GOOGLE_CLIENT_ID,
+    });
+    const payload = ticket.getPayload();
+
+    // Check if user already exists
+    let user = await User.findOne({ email: payload.email });
+
+    if (!user) {
+      // 1️Generate new student_id
+      const department = "SET"; // default dept (update later if needed)
+      const lastStudent = await Student.findOne({ department }).sort({ student_id: -1 });
+      let nextIdNumber = lastStudent
+        ? parseInt(lastStudent.student_id.slice(-3)) + 1
+        : 1;
+      const student_id = `ST${department}${new Date().getFullYear()}${String(
+        nextIdNumber
+      ).padStart(3, "0")}`;
+
+      //  Create Student record
+      const generatedPassword =
+        Math.random().toString(36).slice(-8) +
+        Math.random().toString(36).slice(-8);
+      const hashedPassword = await bcryptjs.hash(generatedPassword, 10);
+
+      const newStudent = new Student({
+        student_id,
+        name: payload.name,
+        email: payload.email,
+        password: hashedPassword, // dummy password
+        phone: "",
+        department,
+      });
+      await newStudent.save();
+
+      // 3 Create linked User record
+      user = new User({
+        user_id: student_id, // link to Student
+        username: payload.name,
+        email: payload.email,
+        password: hashedPassword,
+        profilePicture: payload.picture,
+        role: "student",
+        isAdmin: false,
+      });
+      await user.save();
+    }
+
+    // Issue JWT
+    const appToken = jwt.sign(
+      { id: user._id, role: user.role || "student", isAdmin: user.isAdmin || false },
+      process.env.JWT_SECRET,
+      { expiresIn: "1h" }
+    );
+
+    res.cookie("access_token", appToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+    });
+
+    //  Response is now same structure as normal login
+    res.status(200).json({
+      id: user._id,
+      user_id: user.user_id, // student_id ref
+      username: user.username,
+      email: user.email,
+      profilePicture: user.profilePicture,
+      role: user.role || "student",
+      isAdmin: user.isAdmin || false,
+      token: appToken,
+    });
+  } catch (err) {
+    console.error("Google OAuth error:", err);
+    res.status(500).json({ message: "Google login failed" });
+  }
+};
+
+
 
 export const signup = async (req, res, next) => {
   const { username, email, password } = req.body;

@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { signInFailure, signInStart, signInSuccess } from "../redux/user/userSlice";
@@ -12,11 +13,10 @@ export default function SignIn() {
   const navigate = useNavigate();
   const dispatch = useDispatch();
 
-  // Validate fields
+  // ✅ Validate fields
   const validate = () => {
     const newErrors = {};
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
     if (!emailRegex.test(formData.email)) {
       newErrors.email = "Please enter a valid email";
     }
@@ -30,7 +30,7 @@ export default function SignIn() {
     setFormData({ ...formData, [e.target.id]: e.target.value });
   };
 
-  // Submit form
+  // ✅ Submit form (normal login)
   const handleSubmit = async (e) => {
     e.preventDefault();
     const validationErrors = validate();
@@ -71,14 +71,58 @@ export default function SignIn() {
     }
   };
 
+  // ✅ Google Sign-In Integration
+  useEffect(() => {
+    /* global google */
+    if (window.google) {
+      google.accounts.id.initialize({
+        client_id: import.meta.env.VITE_GOOGLE_CLIENT_ID,
+        callback: handleGoogleResponse,
+      });
+      google.accounts.id.renderButton(
+        document.getElementById("google-login-btn"),
+        { theme: "outline", size: "large" }
+      );
+    }
+  }, []);
+
+  const handleGoogleResponse = async (response) => {
+  try {
+    dispatch(signInStart());
+    const res = await axios.get(
+      `http://localhost:3000/api/auth/google/callback?token=${response.credential}`,
+      { withCredentials: true }
+    );
+
+    const data = res.data;
+    dispatch(signInSuccess(data)); // ✅ same structure as normal login
+
+    const userRole = data.role || "user";
+    if (userRole === "admin") {
+      navigate("/admin-profile");
+    } else if (userRole === "examiner") {
+      navigate("/profile");
+    } else if (userRole === "student") {
+      navigate("/student-profile");
+    } else {
+      navigate("/");
+    }
+  } catch (err) {
+    console.error("Google login error:", err);
+    dispatch(signInFailure(err));
+  }
+};
+
+
   return (
     <div className="min-h-screen flex">
       {/* Left side: Form */}
       <div className="w-full md:w-1/2 flex flex-col justify-center p-8 bg-gray-100">
         <div className="max-w-md w-full mx-auto">
           <h1 className="text-3xl text-center font-semibold my-7">Sign In</h1>
+
+          {/* Normal login form */}
           <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-            {/* Email Field */}
             <input
               type="email"
               placeholder="Email"
@@ -88,7 +132,6 @@ export default function SignIn() {
             />
             {errors.email && <p className="text-red-500">{errors.email}</p>}
 
-            {/* Password Field */}
             <div className="relative">
               <input
                 type={showPassword ? "text" : "password"}
@@ -98,8 +141,6 @@ export default function SignIn() {
                 onChange={handleChange}
               />
               {errors.password && <p className="text-red-500">{errors.password}</p>}
-
-              {/* Toggle Show/Hide Password */}
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
@@ -109,7 +150,6 @@ export default function SignIn() {
               </button>
             </div>
 
-            {/* Submit Button */}
             <button
               disabled={loading}
               className="bg-blue-600 text-white p-3 rounded-lg uppercase hover:opacity-95 disabled:opacity-80"
@@ -118,6 +158,11 @@ export default function SignIn() {
             </button>
           </form>
 
+          {/* Google Login Button */}
+          <div className="mt-5 flex justify-center">
+            <div id="google-login-btn"></div>
+          </div>
+
           {/* Error Message */}
           <p className="text-red-700 mt-5">
             {error ? error.message || "Something went wrong!" : ""}
@@ -125,11 +170,11 @@ export default function SignIn() {
         </div>
       </div>
 
-      {/* Right side: Background Image (hidden on small screens if desired) */}
+      {/* Right side: Background Image */}
       <div
         className="hidden md:block md:w-1/2 bg-cover bg-center"
         style={{
-          backgroundImage: `url("https://img.freepik.com/free-photo/business-team-meeting_23-2151937269.jpg?t=st=1742725718~exp=1742729318~hmac=3bbe884517684eba1bb49150c2aa751e0936d430d4f4428c7d77d10b36eb27ee&w=740")`,
+          backgroundImage: `url("https://img.freepik.com/free-photo/business-team-meeting_23-2151937269.jpg")`,
         }}
       />
     </div>
