@@ -41,11 +41,16 @@ const isTimeSlotAvailable = async (date, startTime, endTime, examiners = [], ven
 
   // examiner conflict?
   if (examiners && examiners.length > 0) {
-    const overlappingExaminer = await Presentation.findOne({
-      date,
-      ...timeCondition,
-      examiners: { $in: examiners },
-    }).lean();
+    // Validate input to prevent NoSQL injection
+const safeDate = typeof date === "string" ? date : "";
+const safeExaminers = Array.isArray(examiners) ? examiners.map(e => String(e)) : [];
+const safeTimeCondition = typeof timeCondition === "object" && timeCondition !== null ? timeCondition : {};
+
+const overlappingExaminer = await Presentation.findOne({
+  date: safeDate,
+  ...safeTimeCondition,
+  examiners: { $in: safeExaminers },
+}).lean();
     if (overlappingExaminer) return false;
   }
 
