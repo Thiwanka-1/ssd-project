@@ -227,8 +227,9 @@ export const updateTimetable = async (req, res) => {
       for (let i = 0; i < dayLectures.length; i++) {
         const lecture = dayLectures[i];
 
-        const moduleExists = await Module.findOne({ module_code: lecture.module_code });
-        if (!moduleExists) return res.status(400).json({ message: `Invalid Module Code (${lecture.module_code}).` });
+// Sanitize lecture.module_code before using in query to prevent NoSQL injection
+        const sanitizedModuleCode = mongoSanitize.sanitize(lecture.module_code);
+        const moduleExists = await Module.findOne({ module_code: sanitizedModuleCode });        if (!moduleExists) return res.status(400).json({ message: `Invalid Module Code (${lecture.module_code}).` });
 
         const lecturerExists = await Examiner.findOne({ examiner_id: lecture.lecturer_id });
         if (!lecturerExists) return res.status(400).json({ message: `Invalid Lecturer ID (${lecture.lecturer_id}).` });
