@@ -236,8 +236,9 @@ export const checkAvailability = async (req, res, next) => {
     const examinerDocs = examiners.length
       ? await Examiner.find({ examiner_id: { $in: examiners } }).select("_id").lean()
       : [];
-    const venueDoc = venue ? await Venue.findOne({ venue_id: venue }).select("_id").lean() : null;
-
+const venueDoc = isVenueIdValid && venue 
+      ? await Venue.findOne({ venue_id: venue }).select("_id").lean() 
+      : null;
     // Validate conversions
     if ((students.length && studentDocs.length !== students.length) ||
         (examiners.length && examinerDocs.length !== examiners.length) ||
