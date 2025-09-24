@@ -215,7 +215,7 @@ export const updateTimetable = async (req, res) => {
     const schedule = sanitizeSchedule(value.schedule);
 
     // Validate group exists
-    const groupExists = await StudentGroup.findOne({ group_id });
+    const groupExists = await StudentGroup.findOne({ group_id: sanitizedGroupId });
     if (!groupExists) {
       return res.status(400).json({ message: "Invalid Group ID. Group does not exist." });
     }
@@ -309,7 +309,9 @@ export const getTimetableForStudent = async (req, res) => {
       return res.status(400).json({ message: "Invalid Student ID format" });
     }
 
-    const safeStudentId = sanitizeString(studentId);
+    // Use express-mongo-sanitize to sanitize user input before using in a query
+    const mongoSanitize = require('express-mongo-sanitize');
+    const safeStudentId = mongoSanitize.sanitize(studentId); // replaces manual sanitizeString
     const student = await Student.findOne({ student_id: safeStudentId });
     if (!student) {
       return res.status(404).json({ message: "Student not found." });

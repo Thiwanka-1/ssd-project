@@ -252,8 +252,8 @@ const venueDoc = isVenueIdValid && venue
 
     // Query presentations safely using object ids and fixed query fields
     const presentations = await Presentation.find({
-      date,
-      department,
+      date: sanitizedDate,
+      department: sanitizedDepartment,
       ...(venueObjectId ? { venue: venueObjectId } : {}),
       $or: [
         { students: { $in: studentObjectIds } },
