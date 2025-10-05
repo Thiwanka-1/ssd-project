@@ -121,26 +121,44 @@ export const signin = async (req, res, next) => {
 
     // ✅ Include role in JWT
     const token = jwt.sign(
-      { id: validUser._id, isAdmin: validUser.isAdmin, role: userRole },
-      process.env.JWT_SECRET
+      { id: validUser._id, isAdmin: validUser.isAdmin, role: userRole }, 
+      process.env.JWT_SECRET,
+      { expiresIn: "1h" } // force expiry
     );
 
     const { password: hashedPassword, ...rest } = validUser._doc;
-    const expiryDate = new Date(Date.now() + 86400000); // 1 hour
 
-    /*res
-      .cookie('access_token', token, { httpOnly: true, expires: expiryDate })*/
-    //Sarangi
-    res.cookie('access_token', token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production', // ✅ use HTTPS in prod
-      sameSite: 'lax',                               // ✅ add SameSite
-      expires: expiryDate,
-    })
+    // clear any old cookie before setting new
+    res.setHeader("Cache-Control", "no-store");   // prevents reuse of response
+    
+    if (req.session) {
+      req.session.regenerate(err => {
+        if (err) console.error("Session regeneration failed:", err);
+      });
+    }
+
+    res.clearCookie("access_token", { path: "/" });
+    if (req.session) {
+      req.session.destroy(err => {
+        if (err) console.error("Failed to destroy old session:", err);
+      });
+    }
+
+
+    res
+      .cookie('access_token', token, { 
+          httpOnly: true, 
+          secure: process.env.NODE_ENV === 'production', // only HTTPS in production
+          sameSite: 'Strict', 
+          path: "/",
+          maxAge: 60 * 60 * 1000, // 1 hour
+          overwrite: true,
+          signed: true 
+      })
       .status(200)
-      .json({
-        ...rest,
-        token,
+      .json({ 
+        ...rest, 
+        token, 
         role: userRole // ✅ Ensure role is included in response
       });
   } catch (error) {
@@ -154,21 +172,31 @@ export const google = async (req, res, next) => {
   try {
     const user = await User.findOne({ email: req.body.email });
     if (user) {
-      const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET);
+      const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: "1h" }); // expiry added
       const { password: hashedPassword, ...rest } = user._doc;
-      const expiryDate = new Date(Date.now() + 86400000); // 1 hour
-      /*res
+      res.setHeader("Cache-Control", "no-store"); //  prevent fixation
+      if (req.session) {
+      req.session.regenerate(err => {
+        if (err) console.error("Session regeneration failed:", err);
+      });
+      }
+      res.clearCookie("access_token", { path: "/" });
+      if (req.session) {
+        req.session.destroy(err => {
+          if (err) console.error("Failed to destroy old session:", err);
+        });
+      }
+
+      res
         .cookie('access_token', token, {
           httpOnly: true,
-          expires: expiryDate,
-        })*/
-      //Sarangi
-      res.cookie('access_token', token, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production', // ✅ secure in prod
-        sameSite: 'lax',                               // ✅ add SameSite
-        expires: expiryDate,
-      })
+          secure: process.env.NODE_ENV === 'production',
+          sameSite: 'Strict',
+          path: "/",
+          maxAge: 60 * 60 * 1000,
+          overwrite: true,
+          signed: true
+        })
         .status(200)
         .json(rest);
     } else {
@@ -185,20 +213,31 @@ export const google = async (req, res, next) => {
         profilePicture: req.body.photo,
       });
       await newUser.save();
-      const token = jwt.sign({ id: newUser._id }, process.env.JWT_SECRET);
+      const token = jwt.sign({ id: newUser._id }, process.env.JWT_SECRET, { expiresIn: "1h" }); // expiry added
       const { password: hashedPassword2, ...rest } = newUser._doc;
-      const expiryDate = new Date(Date.now() + 86400000); // 1 hour
-      /*res
+      res.setHeader("Cache-Control", "no-store"); // prevent fixation
+      if (req.session) {
+      req.session.regenerate(err => {
+        if (err) console.error("Session regeneration failed:", err);
+      });
+      }
+      res.clearCookie("access_token", { path: "/" });
+      if (req.session) {
+        req.session.destroy(err => {
+          if (err) console.error("Failed to destroy old session:", err);
+        });
+      }
+
+      res
         .cookie('access_token', token, {
           httpOnly: true,
-          expires: expiryDate,
-        })*/
-      res.cookie('access_token', token, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production', // ✅ secure in prod
-        sameSite: 'lax',                               // ✅ add SameSite
-        expires: expiryDate,
-      })
+          secure: process.env.NODE_ENV === 'production',
+          sameSite: 'Strict',
+          path: "/",
+          maxAge: 60 * 60 * 1000,
+          overwrite: true,
+          signed: true
+        })
         .status(200)
         .json(rest);
     }
@@ -208,11 +247,5 @@ export const google = async (req, res, next) => {
 };
 
 export const signout = (req, res) => {
-  //Sarangi
-  // res.clearCookie('access_token').status(200).json('Signout success!');
-  res.clearCookie('access_token', {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
-  }).status(200).json('Signout success!');
+  res.clearCookie('access_token').status(200).json('Signout success!');
 };

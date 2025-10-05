@@ -151,7 +151,7 @@ for (const lecture of lecturesToReschedule) {
         });
 
     } catch (error) {
-        console.error(`Error fetching students for group ${lecture.group_id}:`, error);
+      console.log("Reschedule response for Examiner:", examiner.examiner_id, response);
     }
 }
 
@@ -188,7 +188,7 @@ if (studentEmails.size === 0) {
         try {
             await sendEmail(email, emailSubject, emailText);
         } catch (error) {
-            console.error(` Failed to send email to ${email}:`, error);
+          console.log("Error while rescheduling lectures for Examiner:", examinerObjectId, error);
         }
     }
     
